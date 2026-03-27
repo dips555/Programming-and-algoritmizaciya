@@ -1,0 +1,10 @@
+import random
+
+list = [[random.randint(-50, 50) for x in range(5)] for y in range(5)]
+
+list2 = [[x for x in sublist
+          if x > 0]
+         for sublist in list]
+
+print(list)
+print(list2)
