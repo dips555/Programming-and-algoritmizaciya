@@ -1,0 +1,13 @@
+spisok = input()
+spisokk = spisok.split()
+
+mnojestvo = set(spisokk)
+
+kolichestvo = len(mnojestvo)
+
+kot = " ".join(mnojestvo)
+
+
+print(f"количество элементов: {kolichestvo}")
+print(kot)
+
