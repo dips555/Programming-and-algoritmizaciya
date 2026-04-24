@@ -95,22 +95,25 @@ for x, y, z in coords:
 # =====================================================
 
 
-t.color(SUN_COLOR)
-t.width(SHIRINA)
-for i in range(COUNT_LUCH):
+def sun(x,y,x1,y1):
+    t.color(SUN_COLOR)
+    t.width(SHIRINA)
+    for i in range(COUNT_LUCH):
+        t.penup()
+        t.goto(x, y)
+        t.pendown()
+        t.setheading(i * 22.5)
+        t.forward(LEN_LUCH)
+    t.width(1)
     t.penup()
-    t.goto(300, 250)
+    t.goto(x1, y1 )
     t.pendown()
-    t.setheading(i * 22.5)
-    t.forward(LEN_LUCH)
-t.width(1)
-t.penup()
-t.goto(280, 200)
-t.pendown()
-t.color(CIRCLE_COLOR)
-t.begin_fill()
-t.circle(RADIUS_SUN)
-t.end_fill()
+    t.color(CIRCLE_COLOR)
+    t.begin_fill()
+    t.circle(RADIUS_SUN)
+    t.end_fill()
+
+sun(300,250, 280, 200)
 
 
 # НАДПИСЬ
