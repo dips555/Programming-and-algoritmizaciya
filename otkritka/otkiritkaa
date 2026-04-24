@@ -1,0 +1,300 @@
+import turtle
+
+t = turtle.Turtle()
+t.speed(0)
+t.hideturtle()
+screen = turtle.Screen()
+screen.bgcolor("lightblue")
+screen.setup(width=800, height=700)
+
+#  КОНСТАНТЫ
+
+#  ОБЛАКА
+COLOR_CLOUD = "white"
+
+#  СОЛНЦЕ
+SUN_COLOR = "orange"
+CIRCLE_COLOR = "yellow"
+COUNT_LUCH = (16)
+LEN_LUCH = (90)
+RADIUS_SUN = (50)
+SHIRINA = (6)
+
+
+#  НАДПИСЬ
+COLOR_WRITE_1 = ("deeppink")
+COLOR_WRITE_2 = ("green")
+COLOR_WRITE_3 = ("pink")
+TEXT_1 = ("C 24 Апреля?")
+TEXT_2 = ("Родные!")
+TEXT_3 = ("Пусть все будет отчлично!")
+TEXT_SHRIFT_1 = (36)
+TEXT_SHRIFT_2 = (20)
+TEXT_SHRIFT_3 = (14)
+
+#  СЕРДЕШКИ
+HEARD_COLOR = ("red")
+
+#  ТРАВА
+COLOR_GRASS = ("green")
+GRASS_LEN = (12)
+COUNT_GRASS = (12)
+
+#  ЦВЕТЫ
+FLOVER_COLOR_1 = ("darkgreen")
+FLOVER_COLOR_2 = ("pink")
+FLOVER_COLOR_3 = ("yellow")
+FLOVER_COLOR_4 = ("orange")
+
+
+
+# =====================================================
+# ОБЛАКО
+# =====================================================
+
+
+t.color(COLOR_CLOUD)
+coords = [
+    (100, 280, 40),
+    (70, 290, 30),
+    (130, 290, 30),
+    (50, 270, 25),
+    (150, 270, 25),
+    (100, 260, 35)
+]
+
+for x, y, z in coords:
+    t.penup()
+    t.goto(x, y -z)
+    t.pendown()
+    t.begin_fill()
+    t.circle(z)
+    t.end_fill()
+
+t.color(COLOR_CLOUD)
+coords = [
+    (-150, 280, 40),
+    (-105, 290, 30),
+    (-195, 290, 30),
+    (-100, 270, 25),
+    (-200, 270, 25),
+    (-150, 260, 35)
+]
+
+for x, y, z in coords:
+    t.penup()
+    t.goto(x, y -z)
+    t.pendown()
+    t.begin_fill()
+    t.circle(z)
+    t.end_fill()
+
+
+# =====================================================
+# СОЛНЫШКО
+# =====================================================
+
+
+t.color(SUN_COLOR)
+t.width(SHIRINA)
+for i in range(COUNT_LUCH):
+    t.penup()
+    t.goto(300, 250)
+    t.pendown()
+    t.setheading(i * 22.5)
+    t.forward(LEN_LUCH)
+t.width(1)
+t.penup()
+t.goto(280, 200)
+t.pendown()
+t.color(CIRCLE_COLOR)
+t.begin_fill()
+t.circle(RADIUS_SUN)
+t.end_fill()
+
+
+# НАДПИСЬ
+
+t.penup()
+t.goto(0, 120)
+t.pendown()
+t.color(COLOR_WRITE_1)
+t.write((TEXT_1), align="center", font=("Arial", (TEXT_SHRIFT_1), "bold"))
+t.penup()
+t.goto(0, 80)
+t.pendown()
+t.color(COLOR_WRITE_2)
+t.write((TEXT_2), align="center", font=("Arial", (TEXT_SHRIFT_2), "italic"))
+t.penup()
+t.goto(0, 30)
+t.pendown()
+t.color(COLOR_WRITE_3)
+t.write((TEXT_3), align="center", font=("Arial", (TEXT_SHRIFT_3), "normal"))
+
+# =====================================================
+# СЕРДЕЧКО
+# =====================================================
+
+
+t.penup()
+t.goto(-300, 0)
+t.pendown()
+t.color(HEARD_COLOR)
+t.begin_fill()
+t.setheading(140)
+t.forward(62)
+t.circle(-35, 200)
+t.setheading(60)
+t.circle(-35, 200)
+t.forward(62)
+t.end_fill()
+
+t.penup()
+t.goto(300, 0)
+t.pendown()
+t.color("red")
+t.begin_fill()
+t.setheading(140)
+t.forward(62)
+t.circle(-35, 200)
+t.setheading(60)
+t.circle(-35, 200)
+t.forward(62)
+t.end_fill()
+
+# =====================================================
+# ЦВЕТОК
+# =====================================================
+
+t.color(FLOVER_COLOR_1)
+t.width(4)
+t.penup()
+t.goto(0, -300)
+t.pendown()
+t.setheading(90)
+t.forward(120)
+t.width(1)
+t.color(FLOVER_COLOR_2)
+for i in range(8):
+    t.penup()
+    t.goto(0, -180)
+    t.pendown()
+    t.setheading(i * 45)
+    t.begin_fill()
+    t.circle(30, 180)
+    t.circle(30, 180)
+    t.end_fill()
+t.penup()
+t.goto(0, -180)
+t.pendown()
+t.color(FLOVER_COLOR_3)
+t.begin_fill()
+t.circle(20)
+t.end_fill()
+
+
+t = turtle.Turtle()
+t.speed(0)
+t.hideturtle()
+screen = turtle.Screen()
+screen.bgcolor("lightblue")
+screen.setup(width=800, height=700)
+
+
+# ВТОРОЙ ЦВЕТОК
+
+t.color(FLOVER_COLOR_1)
+t.width(4)
+t.penup()
+t.goto(300, -300)
+t.pendown()
+t.setheading(90)
+t.forward(120)
+t.width(1)
+t.color(FLOVER_COLOR_3)
+for i in range(8):
+    t.penup()
+    t.goto(300, -180)
+    t.pendown()
+    t.setheading(i * 45)
+    t.begin_fill()
+    t.circle(30, 180)
+    t.circle(30, 180)
+    t.end_fill()
+t.penup()
+t.goto(300, -180)
+t.pendown()
+t.color(FLOVER_COLOR_2)
+t.begin_fill()
+t.circle(20)
+t.end_fill()
+
+# ТРЕТИЙ ЦВЕТОК
+
+t.color(FLOVER_COLOR_1)
+t.width(4)
+t.penup()
+t.goto(-300, -300)
+t.pendown()
+t.setheading(90)
+t.forward(120)
+t.width(1)
+t.color(FLOVER_COLOR_4)
+for i in range(8):
+    t.penup()
+    t.goto(-300, -180)
+    t.pendown()
+    t.setheading(i * 45)
+    t.begin_fill()
+    t.circle(30, 180)
+    t.circle(30, 180)
+    t.end_fill()
+t.penup()
+t.goto(-300, -180)
+t.pendown()
+t.color(FLOVER_COLOR_3)
+t.begin_fill()
+t.circle(20)
+t.end_fill()
+
+
+t = turtle.Turtle()
+t.speed(0)
+t.hideturtle()
+screen = turtle.Screen()
+screen.bgcolor("lightblue")
+screen.setup(width=800, height=700)
+
+#трава
+t.color(COLOR_GRASS)
+for i in range(COUNT_GRASS):
+    t.penup()
+    t.goto(-300 + i * 25, -300)
+    t.pendown()
+    d = 1 if i % 2 == 0 else -1
+    t.setheading(75 + (i % 5) * 10)
+    t.width(3 - (i % 2))
+    n = 70 + (i % 30)
+    for j in range(int(n / 10)):
+        t.forward(GRASS_LEN)
+        t.left(5 * d)
+    t.width(1)
+
+t.color(COLOR_GRASS)
+for i in range(COUNT_GRASS):
+    t.penup()
+    t.goto(300 + i * -25, -300)
+    t.pendown()
+    d = 1 if i % 2 == 0 else -1
+    t.setheading(75 + (i % 5) * 10)
+    t.width(3 - (i % 2))
+    n = 70 + (i % 30)
+    for j in range(int(n / 10)):
+        t.forward(GRASS_LEN)
+        t.left(5 * d)
+    t.width(1)
+
+
+
+
+turtle.done()
