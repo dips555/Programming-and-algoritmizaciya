@@ -1,0 +1,63 @@
+from flask import Flask, request, jsonify, render_template
+import requests
+
+app = Flask(__name__)
+
+DEEPSEEK_API_KEY = "sk-fa4c94be79514341bab2e0f971a0854f"
+
+DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
+
+headers = {
+    "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+    "Content-Type": "application/json"
+}
+
+
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    user_message = request.json.get("message", "").strip()
+
+    if not user_message:
+        return jsonify({"response": "Пустое сообщение"}), 400
+
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": "Ты дружелюбный консультант в магазине в котором есть все, твоя задача узнать что хочет купить клиент, задавай уточняющие вопросы."},
+            {"role": "user", "content": user_message}
+        ],
+        "temperature": 0.7,
+        "stream": False
+    }
+
+    try:
+        response = requests.post(DEEPSEEK_URL, headers=headers, json=payload, timeout=20)
+
+        # 🔥 Печатаем реальный ответ (для отладки)
+        print("STATUS:", response.status_code)
+        print("TEXT:", response.text)
+
+        data = response.json()
+
+        # ❗ обработка ошибок API
+        if "error" in data:
+            return jsonify({"response": f"Ошибка API: {data['error']}"}), 500
+
+        answer = data["choices"][0]["message"]["content"]
+
+        return jsonify({"response": answer})
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({"response": f"Ошибка сети: {str(e)}"}), 500
+
+    except Exception as e:
+        return jsonify({"response": f"Неизвестная ошибка: {str(e)}"}), 500
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
