@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Engineering Bot</title>
+    <style>
+        body { font-family: Arial; max-width: 600px; margin: auto; }
+        #chat { border: 1px solid #ccc; padding: 10px; height: 350px; overflow-y: auto; }
+        input { width: 75%; padding: 8px; }
+        button { width: 23%; padding: 8px; }
+    </style>
+</head>
+<body>
+
+<h2>Инженерный конфигуратор</h2>
+
+<div id="chat"></div>
+
+<input id="input" placeholder="Введите значение..." />
+<button onclick="send()">Отправить</button>
+
+<script>
+let sessionId = null;
+
+async function send() {
+    const input = document.getElementById("input");
+    const chat = document.getElementById("chat");
+
+    const message = input.value.trim();
+    if (!message) return;
+
+    chat.innerHTML += `<p><b>Вы:</b> ${message}</p>`;
+    input.value = "";
+
+    const res = await fetch("/chat", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            message,
+            session_id: sessionId
+        })
+    });
+
+    const data = await res.json();
+    sessionId = data.session_id;
+
+    chat.innerHTML += `<p><b>Бот:</b> ${data.reply}</p>`;
+
+    chat.scrollTop = chat.scrollHeight;
+}
+</script>
+
+</body>
+</html>
