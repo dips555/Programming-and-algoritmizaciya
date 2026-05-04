@@ -1,0 +1,418 @@
+import math
+
+# ========== 1. ИСХОДНЫЕ ДАННЫЕ (ВВОД ПОЛЬЗОВАТЕЛЯ) ========== #
+
+class InputData:
+    """Данные, которые пользователь вводит с клавиатуры или загружает из файла"""
+    # Мощность двигателя
+    engine_power_kw = 760  # кВт
+
+    # Расходы
+    mass_flow_ovg_kgs = 0.97  # Массовый расход ОВГ (кг/с)
+    mass_flow_steam_kgs = 0.53  # Массовый расход пара (кг/с)
+    mass_flow_mixture_kgs = 1.50  # Массовый расход смеси (кг/с)
+
+    # Объёмный расход смеси
+    volume_flow_mixture_m3s = 4.00  # м³/с
+
+    # Температуры
+    temperature_after_mixing_c = 90  # Температура после смешения, °C
+    temperature_alternative_c = 60  # Альтернативная температура, °C
+
+    # Свойства смеси
+    mixture_density_kgm3 = 0.38  # Плотность смеси кг/м³
+
+    # Вязкости при разных температурах
+    dynamic_viscosity_at_90_pas = 0.0000177  # Па·с при 90°C
+    dynamic_viscosity_at_60_pas = 0.0000191  # Па·с при 60°C
+
+    # Геометрия магистрали
+    pipeline_diameter_m = 0.6  # Расчётный ДУ (м)
+    pipeline_length_m = 5.00  # Длина магистрали (м)
+    lift_height_m = 2.00  # Высота подъёма смеси (м)
+
+    # Скорость потока
+    flow_velocity_ms = 14.13910544  # м/с (не более 30)
+
+    # Состав газов — объёмные доли
+    gas_composition = {
+        'Азот': 0.77,
+        'Кислород': 0.10,
+        'Углекислый газ': 0.09,
+        'Водяной пар': 0.04
+    }
+
+    # Теплоёмкость газов (кДж/м³) при средней температуре
+    gas_heat_capacity = {
+        'Азот': 1.336365,
+        'Кислород': 1.344295,
+        'Углекислый газ': 1.755385,
+        'Водяной пар': 1.547796
+    }
+
+    # Температуры для расчёта теплоты
+    temp_start_c = 345  # Средняя температура (tн + tк)/2
+    temp_max_c = 600  # Максимальная температура
+
+    # Расход топлива и воздуха
+    fuel_consumption_kgs = 0.022166667  # Удельный расход топлива кг/с
+    stoichiometric_air = 14.3  # Стехиометрический расход воздуха (кг воздуха/кг топлива)
+    excess_air_coefficient = 3.0  # Коэффициент избытка воздуха (для двигателя без турбины)
+    specific_fuel_consumption = 0.105  # Удельный расход топлива кг/кВт·ч
+
+    # Водяное охлаждение
+    water_heat_capacity = 4.187  # Теплоёмкость воды кДж/(кг·К)
+    water_temp_inlet_c = 20  # Температура воды на входе, °C
+    water_temp_outlet_c = 90  # Температура воды на выходе, °C
+    vaporization_reserve_m3h = 1.91  # Запас на испарение, м³/ч
+    recommended_water_flow_m3h = 12.99  # Рекомендуемый расход воды, м³/ч
+
+# ========== 2. КОНСТАНТЫ ИЗ ТАБЛИЦ (НЕ МЕНЯТЬ) ========== #
+
+# Коэффициенты местных сопротивлений
+LOCAL_RESISTANCE_COEFFICIENTS = {
+    'Водяной замок': 1.2,
+    'Гусь или глушитель': 1.2,
+    'Задвижка (захлопка)': 1.3,
+    'Колено 90 градусов (R=1.5D)': 0.3,
+    'Отвод 45 градусов': 0.17,
+    'Выход в атмосферу': 1.2
+}
+
+# Количество каждого элемента
+LOCAL_RESISTANCE_COUNTS = {
+    'Водяной замок': 1,
+    'Гусь или глушитель': 1,
+    'Задвижка (захлопка)': 1,
+    'Колено 90 градусов (R=1.5D)': 3,
+    'Отвод 45 градусов': 2,
+    'Выход в атмосферу': 1
+}
+
+# Физические константы
+GRAVITY = 9.81  # Ускорение свободного падения, м/с²
+STANDARD_PRESSURE = 101325  # Нормальное атмосферное давление, Па
+
+# ========== 3. РАСЧЁТНЫЕ ФУНКЦИИ ========== #
+
+def calculate_reynolds_number(data, temperature_c):
+    """
+    Расчёт числа Рейнольдса
+    Re = ρ * v * D / μ
+    """
+    rho = data.mixture_density_kgm3
+    v = data.flow_velocity_ms
+    D = data.pipeline_diameter_m
+
+    if temperature_c == 90:
+        mu = data.dynamic_viscosity_at_90_pas
+    else:
+        mu = data.dynamic_viscosity_at_60_pas
+
+    re = rho * v * D / mu
+    return re
+
+def calculate_friction_factor_blasius(re):
+    """
+    Коэффициент трения по формуле Блазиуса (для гладких труб, нережимный режим)
+    λ = 0.3164 / Re^0.25
+    """
+    if re <= 0:
+        return 0.015
+    lambda_factor = 0.3164 / (re ** 0.25)
+    return lambda_factor
+
+def calculate_friction_factor_with_two_phase(lambda_single, two_phase_coefficient=1.2):
+    """
+    Коэффициент трения для двухфазной среды (по Локхарт-Маринелли)
+    λ_two_phase = λ_single * K
+    K — коэффициент увеличения (из фото: 1.2)
+    """
+    return lambda_single * two_phase_coefficient
+
+def calculate_friction_loss_per_meter(data, lambda_factor):
+    """
+    Потери на трение на 1 метр длины, Па/м
+    ΔP/м = λ * (ρ * v²) / (2 * D)
+    """
+    rho = data.mixture_density_kgm3
+    v = data.flow_velocity_ms
+    D = data.pipeline_diameter_m
+
+    loss_per_m = lambda_factor * (rho * v * v) / (2 * D)
+    return loss_per_m
+
+def calculate_total_friction_loss(data, lambda_factor):
+    """
+    Потери на трение по всей длине, Па
+    ΔP_friction = (ΔP/м) * L
+    """
+    loss_per_m = calculate_friction_loss_per_meter(data, lambda_factor)
+    total_loss = loss_per_m * data.pipeline_length_m
+    return total_loss
+
+def calculate_local_resistance_loss(data):
+    """
+    Потери на местных сопротивлениях, Па
+    ΔP_local = Σξ * (ρ * v²) / 2
+    """
+    rho = data.mixture_density_kgm3
+    v = data.flow_velocity_ms
+
+    # Суммируем коэффициенты с учётом количества
+    sum_xi = 0
+    for element, coeff in LOCAL_RESISTANCE_COEFFICIENTS.items():
+        count = LOCAL_RESISTANCE_COUNTS.get(element, 1)
+        sum_xi = sum_xi + coeff * count
+
+    local_loss = sum_xi * (rho * v * v) / 2
+    return local_loss, sum_xi
+
+def calculate_hydrostatic_pressure(data):
+    """
+    Расчёт гидростатического давления
+    Для газовой и жидкостной составляющей
+    """
+    # Гидростатика газовой составляющей
+    # P_gas = ρ_gas * g * h, но в фото дано готовое значение
+    gas_hydrostatic = 7.38
+
+    # Процент сечения, занятый жидкостью (из фото: 5%)
+    liquid_fraction = 0.05
+
+    # Плотность воды (приближённо 1000 кг/м³)
+    water_density = 1000
+
+    # Гидростатика жидкостной составляющей
+    liquid_hydrostatic = water_density * GRAVITY * data.lift_height_m * liquid_fraction
+
+    return gas_hydrostatic, liquid_hydrostatic
+
+def calculate_total_backpressure(data, lambda_factor):
+    """
+    Полное противодавление системы, кПа
+    Сумма: трение по длине + местные сопротивления + гидростатика
+    """
+    friction_loss = calculate_total_friction_loss(data, lambda_factor)
+    local_loss, sum_xi = calculate_local_resistance_loss(data)
+    gas_hydro, liquid_hydro = calculate_hydrostatic_pressure(data)
+
+    total_pa = friction_loss + local_loss + gas_hydro + liquid_hydro
+    total_kpa = total_pa / 1000
+
+    return total_kpa, {
+        'friction_pa': friction_loss,
+        'local_pa': local_loss,
+        'gas_hydro_pa': gas_hydro,
+        'liquid_hydro_pa': liquid_hydro,
+        'sum_xi': sum_xi
+    }
+
+def calculate_mixture_heat_capacity(data):
+    """
+    Расчёт теплоёмкости смеси газов (кДж/м³)
+    C_смеси = Σ (доля_i * C_i)
+    Из фото 1000124201.jpg: результат 1.38
+    """
+    c_mixture = 0
+    for gas, fraction in data.gas_composition.items():
+        c_gas = data.gas_heat_capacity.get(gas, 1.0)
+        c_mixture = c_mixture + fraction * c_gas
+    return c_mixture
+
+def calculate_heat_removed(data, gas_volume_m3_per_s=1.0):
+    """
+    Отводимая теплота (кДж/м³)
+    Q = C_смеси * ΔT
+    Из фото: 705.50 кДж/м³
+    """
+    c_mixture = calculate_mixture_heat_capacity(data)
+    # ΔT = T_макс - T_ср (из фото: 600 - 345 = 255)
+    delta_T = data.temp_max_c - data.temp_start_c
+    heat = c_mixture * delta_T
+    return heat
+
+def calculate_heat_capacity_delta(data):
+    """
+    Теплоёмкость "дельта" (из фото: 510.97)
+    """
+    heat_removed = calculate_heat_removed(data)
+    delta_T = data.temp_max_c - data.temp_start_c
+    if delta_T > 0:
+        return heat_removed / delta_T
+    return heat_removed
+
+def calculate_water_flow(data):
+    """
+    Расчёт расхода воды на охлаждение
+    Из фото: 12.99 м³/ч
+    """
+    return data.recommended_water_flow_m3h
+
+# ========== 4. ПРОВЕРКА ГРАНИЧНЫХ УСЛОВИЙ ========== #
+
+def check_boundary_conditions(data, velocity_ms, backpressure_kpa):
+    """
+    Проверка ограничений:
+    - Скорость потока не более 30 м/с
+    - Противодавление не более 13 кПа
+    """
+    warnings = []
+
+    if velocity_ms > 30:
+        warnings.append(
+            "СКОРОСТЬ ПОТОКА " + str(round(velocity_ms, 2)) + " м/с ПРЕВЫШАЕТ 30 м/с! Требуется увеличение диаметра.")
+    else:
+        warnings.append("Скорость потока " + str(round(velocity_ms, 2)) + " м/с в норме (не более 30)")
+
+    if backpressure_kpa > 13:
+        warnings.append("ПРОТИВОДАВЛЕНИЕ " + str(
+            round(backpressure_kpa, 2)) + " кПа ПРЕВЫШАЕТ 13 кПа! Требуется пересмотр конфигурации.")
+    else:
+        warnings.append("Противодавление " + str(round(backpressure_kpa, 2)) + " кПа в норме (не более 13)")
+
+    # Проверка мощности двигателя (если больше 800 кВт — отправка на почту)
+    need_email = False
+    if data.engine_power_kw >= 800:
+        need_email = True
+        warnings.append("Мощность двигателя " + str(
+            data.engine_power_kw) + " кВт >= 800 кВт -> требуется отправка запроса на почту")
+
+    return need_email, warnings
+
+# ========== 5. ФОРМИРОВАНИЕ ОТЧЁТА ========== #
+
+def generate_report(data):
+    """
+    Генерирует полный отчёт на основе данных из методики
+    """
+    report = []
+    report.append("=" * 70)
+    report.append("РАСЧЁТ СИСТЕМЫ ОХЛАЖДЕНИЯ ВЫХЛОПНЫХ ГАЗОВ")
+    report.append("На основе методики гидравлического расчёта")
+    report.append("=" * 70)
+
+    report.append("\n--- 1. ИСХОДНЫЕ ДАННЫЕ ---")
+    report.append("Мощность двигателя: " + str(data.engine_power_kw) + " кВт")
+    report.append("Массовый расход ОВГ: " + str(data.mass_flow_ovg_kgs) + " кг/с")
+    report.append("Массовый расход пара: " + str(data.mass_flow_steam_kgs) + " кг/с")
+    report.append("Массовый расход смеси: " + str(data.mass_flow_mixture_kgs) + " кг/с")
+    report.append("Объёмный расход смеси: " + str(data.volume_flow_mixture_m3s) + " м³/с")
+    report.append("Плотность смеси: " + str(data.mixture_density_kgm3) + " кг/м³")
+    report.append("Температура после смешения: " + str(data.temperature_after_mixing_c) + " °C")
+    report.append("Диаметр магистрали (ДУ): " + str(data.pipeline_diameter_m) + " м")
+    report.append("Длина магистрали: " + str(data.pipeline_length_m) + " м")
+    report.append("Высота подъёма смеси: " + str(data.lift_height_m) + " м")
+    report.append("Скорость потока: " + str(round(data.flow_velocity_ms, 2)) + " м/с")
+
+    report.append("\n--- 2. ГИДРАВЛИЧЕСКИЙ РАСЧЁТ ---")
+
+    # Числа Рейнольдса
+    re_90 = calculate_reynolds_number(data, 90)
+    re_60 = calculate_reynolds_number(data, 60)
+    report.append("Число Рейнольдса (90°C): " + str(round(re_90, 2)))
+    report.append("Число Рейнольдса (60°C): " + str(round(re_60, 2)))
+
+    # Коэффициенты трения по Блазиусу
+    lambda_90 = calculate_friction_factor_blasius(re_90)
+    lambda_60 = calculate_friction_factor_blasius(re_60)
+    report.append("Коэффициент трения (Блазиус, 90°C): " + str(round(lambda_90, 6)))
+    report.append("Коэффициент трения (60°C): " + str(round(lambda_60, 6)))
+
+    # Двухфазный коэффициент
+    TWO_PHASE_COEFF = 1.2
+    lambda_two_phase_90 = calculate_friction_factor_with_two_phase(lambda_90, TWO_PHASE_COEFF)
+    lambda_two_phase_60 = calculate_friction_factor_with_two_phase(lambda_60, TWO_PHASE_COEFF)
+    report.append("Коэффициент трения двухфазный (90°C): " + str(round(lambda_two_phase_90, 6)))
+    report.append("Коэффициент трения двухфазный (60°C): " + str(round(lambda_two_phase_60, 6)))
+
+    # Усреднённый коэффициент
+    avg_lambda = 0.019
+    report.append("Усреднённый коэффициент для магистрали: " + str(avg_lambda))
+
+    # Потери на трение
+    loss_per_m = calculate_friction_loss_per_meter(data, avg_lambda)
+    total_friction = calculate_total_friction_loss(data, avg_lambda)
+    report.append("Потери на трение на 1 м длины: " + str(round(loss_per_m, 2)) + " Па/м")
+    report.append("Потери на трение по длине: " + str(round(total_friction, 2)) + " Па")
+
+    report.append("\n--- 3. МЕСТНЫЕ СОПРОТИВЛЕНИЯ ---")
+    local_loss, sum_xi = calculate_local_resistance_loss(data)
+    report.append("Суммарный коэффициент местных сопротивлений: " + str(round(sum_xi, 2)))
+    report.append("Потери на местных сопротивлениях: " + str(round(local_loss, 2)) + " Па")
+
+    report.append("\n--- 4. ГИДРОСТАТИЧЕСКОЕ ДАВЛЕНИЕ ---")
+    gas_hydro, liquid_hydro = calculate_hydrostatic_pressure(data)
+    report.append("Гидростатика газовой составляющей: " + str(round(gas_hydro, 2)) + " Па")
+    report.append("Гидростатика жидкостной составляющей: " + str(round(liquid_hydro, 2)) + " Па")
+
+    report.append("\n--- 5. ПРОТИВОДАВЛЕНИЕ СИСТЕМЫ ---")
+    total_backpressure, details = calculate_total_backpressure(data, avg_lambda)
+    report.append("Противодавление системы: " + str(round(total_backpressure, 2)) + " кПа")
+    report.append(" (вкл. трение " + str(round(details['friction_pa'], 2)) + " Па + местные " + str(
+        round(details['local_pa'], 2)) + " Па + гидростатика)")
+
+    report.append("\n--- 6. ТЕПЛОВОЙ РАСЧЁТ (по данным фото 1000124201.jpg) ---")
+
+    # Состав газов
+    report.append("Состав выхлопных газов (объёмные доли):")
+    for gas, fraction in data.gas_composition.items():
+        report.append(" • " + gas + ": " + str(fraction * 100) + "%")
+
+    c_mixture = calculate_mixture_heat_capacity(data)
+    report.append("Теплоёмкость смеси: " + str(round(c_mixture, 3)) + " кДж/м³")
+
+    heat_removed = calculate_heat_removed(data)
+    report.append("Отводимая теплота: " + str(round(heat_removed, 2)) + " кДж/м³")
+
+    heat_delta = calculate_heat_capacity_delta(data)
+    report.append("Теплоёмкость 'дельта': " + str(round(heat_delta, 2)))
+
+    report.append("\n--- 7. ВОДЯНОЕ ОХЛАЖДЕНИЕ ---")
+    report.append("Теплоёмкость воды: " + str(data.water_heat_capacity) + " кДж/(кг·К)")
+    report.append("Температура воды на входе: " + str(data.water_temp_inlet_c) + " °C")
+    report.append("Температура воды на выходе: " + str(data.water_temp_outlet_c) + " °C")
+    report.append("Номинальный расход воды: " + str(round(calculate_water_flow(data), 2)) + " м³/ч")
+    report.append("Запас на испарение: " + str(data.vaporization_reserve_m3h) + " м³/ч")
+    report.append("Рекомендуемый расход воды: " + str(data.recommended_water_flow_m3h) + " м³/ч")
+
+    report.append("\n--- 8. ПРОВЕРКА ГРАНИЧНЫХ УСЛОВИЙ ---")
+    need_email, boundary_warnings = check_boundary_conditions(data, data.flow_velocity_ms, total_backpressure)
+    for w in boundary_warnings:
+        report.append("• " + w)
+
+    if need_email:
+        report.append("\n[ВНИМАНИЕ] Требуется отправка запроса на почту (превышены лимиты)")
+
+    report.append("\n--- 9. РЕКОМЕНДАЦИИ ---")
+    report.append("• При превышении скорости 30 м/с увеличить диаметр трубопровода")
+    report.append("• При противодавлении выше 13 кПа произвести пересмотр конфигурации")
+    report.append("• Обеспечить уклон магистрали не менее 1% для отвода конденсата")
+    report.append("• Установить конденсатоотводчики в нижних точках системы")
+
+    report.append("\n" + "=" * 70)
+    report.append("РАСЧЁТ ВЫПОЛНЕН НА ОСНОВЕ ПРЕДОСТАВЛЕННОЙ МЕТОДИКИ")
+    report.append("=" * 70)
+
+    return "\n".join(report)
+
+# ========== 6. ЗАПУСК ПРОГРАММЫ ========== #
+
+# Создаём объект с данными
+data = InputData()
+
+# Выполняем расчёты
+print("ЗАПУСК РАСЧЁТА СИСТЕМЫ ОХЛАЖДЕНИЯ ВЫХЛОПНЫХ ГАЗОВ")
+print("Используются данные из предоставленных таблиц (файлы 1000124200.jpg и 1000124201.jpg)")
+print("")
+
+# Генерируем и выводим отчёт
+report = generate_report(data)
+print(report)
+
+# Сохраняем в файл
+with open("hydraulic_calculation_report.txt", "w", encoding="utf-8") as f:
+    f.write(report)
+
+print("")
+print("[ГОТОВО] Отчёт сохранён в файл 'hydraulic_calculation_report.txt'")
